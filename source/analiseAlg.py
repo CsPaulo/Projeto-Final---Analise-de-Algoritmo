@@ -2,7 +2,19 @@ import time
 import random
 import statistics
 import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+import json
+import csv
 
+# ...existing code...
+
+# tema bonito
+sns.set_theme(style="whitegrid", palette="muted")
+
+# criar pasta de saída de figuras
+FIGS_DIR = "figs"
+os.makedirs(FIGS_DIR, exist_ok=True)
 
 # ===============================================================
 # 1. ALGORITMOS
@@ -110,13 +122,21 @@ def medir_tempo(algoritmo, dados, rep=100, n0=None):
         fim = time.perf_counter_ns()
         tempos.append(fim - inicio)
 
+    # tratar moda sem erro
+    try:
+        moda = statistics.mode(tempos)
+    except statistics.StatisticsError:
+        moda = "Não existe"
+
+    desvio = statistics.stdev(tempos) if len(tempos) > 1 else 0.0
+
     return {
         "min": min(tempos),
         "max": max(tempos),
         "media": statistics.mean(tempos),
         "mediana": statistics.median(tempos),
-        "moda": statistics.mode(tempos) if len(set(tempos)) != len(tempos) else "Não existe",
-        "desvio": statistics.stdev(tempos),
+        "moda": moda,
+        "desvio": desvio,
         "lista": tempos
     }
 
@@ -125,48 +145,69 @@ def medir_tempo(algoritmo, dados, rep=100, n0=None):
 # 3. GRÁFICOS
 # ===============================================================
 
+def _save_and_maybe_show(titulo, sufixo):
+    filename = f"{titulo.replace(' ', '_')}_{sufixo}.png"
+    path = os.path.join(FIGS_DIR, filename)
+    plt.tight_layout()
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    print(f"Gráfico salvo em: {os.path.abspath(path)}")
+    try:
+        plt.show()
+    except Exception:
+        # ambiente headless: apenas salvar
+        pass
+    finally:
+        plt.close()
+
+
 def grafico_medias(result, titulo):
     algs = ["insertion", "merge", "hibrido"]
-    valores = [result[a]["media"] for a in algs]
+    # converter para ms para melhor leitura
+    valores_ms = [result[a]["media"] / 1e6 for a in algs]
 
     plt.figure(figsize=(8, 5))
-    plt.bar(algs, valores)
+    ax = plt.gca()
+    sns.barplot(x=algs, y=valores_ms, palette="muted", ax=ax)
     plt.title("Tempo Médio - " + titulo)
-    plt.ylabel("Tempo (ns)")
-    plt.show()
+    plt.ylabel("Tempo médio (ms)")
+    _save_and_maybe_show(titulo + "_medias", "medias")
 
 
 def grafico_execucoes(result, titulo):
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(12, 6))
+    ax = plt.gca()
 
-    for alg, cor in zip(result.keys(), ["blue", "red", "green"]):
-        plt.plot(result[alg]["lista"], label=alg, color=cor)
+    # plotar cada algoritmo; converter lista para ms
+    for alg, cor in zip(result.keys(), ["#1f77b4", "#ff7f0e", "#2ca02c"]):
+        tempos_ms = [t / 1e6 for t in result[alg]["lista"]]
+        sns.lineplot(x=range(len(tempos_ms)), y=tempos_ms, label=alg, color=cor, ax=ax, marker="o", linewidth=1)
 
     plt.title("100 Execuções - " + titulo)
     plt.xlabel("Execução")
-    plt.ylabel("Tempo (ns)")
+    plt.ylabel("Tempo (ms)")
     plt.legend()
-    plt.show()
+    _save_and_maybe_show(titulo + "_execucoes", "execucoes")
 
 
 def grafico_min_max_media(result, titulo):
     algs = ["insertion", "merge", "hibrido"]
-    mins = [result[a]["min"] for a in algs]
-    maxs = [result[a]["max"] for a in algs]
-    medias = [result[a]["media"] for a in algs]
+    mins_ms = [result[a]["min"] / 1e6 for a in algs]
+    maxs_ms = [result[a]["max"] / 1e6 for a in algs]
+    medias_ms = [result[a]["media"] / 1e6 for a in algs]
 
     x = range(len(algs))
 
     plt.figure(figsize=(10, 5))
-    plt.plot(x, mins, marker="o", label="Min")
-    plt.plot(x, medias, marker="o", label="Média")
-    plt.plot(x, maxs, marker="o", label="Max")
+    ax = plt.gca()
+    sns.lineplot(x=list(x), y=mins_ms, marker="o", label="Min", ax=ax)
+    sns.lineplot(x=list(x), y=medias_ms, marker="o", label="Média", ax=ax)
+    sns.lineplot(x=list(x), y=maxs_ms, marker="o", label="Max", ax=ax)
 
     plt.xticks(x, algs)
     plt.title("Min, Média e Max - " + titulo)
-    plt.ylabel("Tempo (ns)")
+    plt.ylabel("Tempo (ms)")
     plt.legend()
-    plt.show()
+    _save_and_maybe_show(titulo + "_min_med_max", "min_med_max")
 
 
 # ===============================================================
@@ -179,11 +220,11 @@ if __name__ == "__main__":
     n0 = find_n0(limit=800, rep=200)
     print(f"\nn0 usado no híbrido = {n0}\n")
 
-    # Coleções de dados
+    # Coleções de dados (10k conforme enunciado)
     dados_ordenados = list(range(10_000))
     dados_inversos = list(range(10_000, 0, -1))
 
-    # Medições
+    # Medições (rep padrão = 100 conforme enunciado)
     result = {
         "ordenados": {
             "insertion": medir_tempo(insertion_sort, dados_ordenados),
@@ -201,7 +242,23 @@ if __name__ == "__main__":
     print("\n=== RESULTADOS FINAIS ===\n")
     print(result)
 
-    # Gráficos
+    # SALVAR DADOS (JSON + CSV com tempos brutos) para reuso posterior
+    json_path = os.path.join(FIGS_DIR, "results.json")
+    with open(json_path, "w", encoding="utf-8") as jf:
+        json.dump(result, jf, indent=2, ensure_ascii=False)
+    print(f"Dados salvos em: {os.path.abspath(json_path)}")
+
+    csv_path = os.path.join(FIGS_DIR, "raw_times.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+        writer = csv.writer(cf)
+        writer.writerow(["collection", "algoritmo", "execucao_index", "tempo_ns"])
+        for collection_name, collection_data in result.items():
+            for alg_name, stats in collection_data.items():
+                for idx, t in enumerate(stats["lista"]):
+                    writer.writerow([collection_name, alg_name, idx, t])
+    print(f"Tempos brutos salvos em: {os.path.abspath(csv_path)}")
+
+    # Gráficos (salvos em figs/)
     print("\nGerando gráficos para dados ORDENADOS...\n")
     grafico_medias(result["ordenados"], "Ordenados")
     grafico_execucoes(result["ordenados"], "Ordenados")

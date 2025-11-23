@@ -1,0 +1,7 @@
+collection,algoritmo,count,min_ms,max_ms,mean_ms,median_ms,mode_ms,std_ms
+inversos,hibrido,100,10.5159,12.2119,10.8487,10.7855,Não existe,0.2478
+inversos,insertion,100,2187.7629,4669.5577,2735.4731,2198.4075,Não existe,955.9121
+inversos,merge,100,8.1988,9.797,8.5176,8.4566,Não existe,0.2373
+ordenados,hibrido,100,3.4319,4.1768,3.6878,3.651,Não existe,0.1617
+ordenados,insertion,100,0.5127,0.8552,0.5658,0.5455,Não existe,0.0565
+ordenados,merge,100,7.908,10.0999,8.3465,8.2292,7.9431,0.3863
