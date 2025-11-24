@@ -131,33 +131,52 @@ def medias_com_erro(df):
         plt.close()
 
 
+
 def min_med_max_por_colecao(df):
-    """Gráfico com Min, Média e Max lado a lado para cada algoritmo (facilita comparação)."""
+    """Gráfico com Min, Média, Max e Moda lado a lado para cada algoritmo (facilita comparação)."""
     for colecao in df["collection"].unique():
         sub = df[df["collection"] == colecao]
-        stats = sub.groupby("algoritmo")["tempo_ms"].agg(["min", "mean", "max"]).reset_index()
+
+        # usar agregação nomeada incluindo função customizada para moda (retorna NaN se não for única)
+        stats = sub.groupby("algoritmo")["tempo_ms"].agg(
+            min="min",
+            mean="mean",
+            max="max",
+            mode=lambda s: float(s.mode().iloc[0]) if len(s.mode()) == 1 else np.nan
+        ).reset_index()
+
         algs = stats["algoritmo"].tolist()
         mins = stats["min"].values
         means = stats["mean"].values
         maxs = stats["max"].values
+        modes = stats["mode"].values
 
         x = np.arange(len(algs))
-        width = 0.25
-        plt.figure(figsize=(9, 5))
-        plt.bar(x - width, mins, width=width, label="Min", color="#4c72b0")
-        plt.bar(x, means, width=width, label="Média", color="#55a868")
-        plt.bar(x + width, maxs, width=width, label="Max", color="#c44e52")
+        width = 0.2
+        plt.figure(figsize=(10, 5))
+        plt.bar(x - 1.5*width, mins, width=width, label="Min", color="#4c72b0")
+        plt.bar(x - 0.5*width, means, width=width, label="Média", color="#55a868")
+        plt.bar(x + 0.5*width, maxs, width=width, label="Max", color="#c44e52")
+        mode_plot_values = np.where(np.isnan(modes), 0.0, modes)
+        plt.bar(x + 1.5*width, mode_plot_values, width=width, label="Moda (única)", color="#ff7f0e")
         plt.xticks(x, algs)
         plt.ylabel("Tempo (ms)")
-        plt.title(f"Min / Média / Max - {colecao}")
-        for i in x:
-            plt.text(i - width, mins[i] * 1.01, f"{mins[i]:.2f}", ha='center', fontsize=8)
-            plt.text(i, means[i] * 1.01, f"{means[i]:.2f}", ha='center', fontsize=8)
-            plt.text(i + width, maxs[i] * 1.01, f"{maxs[i]:.2f}", ha='center', fontsize=8)
+        plt.title(f"Min / Média / Max / Moda - {colecao}")
+
+        for i in range(len(x)):
+            plt.text(x[i] - 1.5*width, mins[i] * 1.01, f"{mins[i]:.2f}", ha='center', fontsize=8)
+            plt.text(x[i] - 0.5*width, means[i] * 1.01, f"{means[i]:.2f}", ha='center', fontsize=8)
+            plt.text(x[i] + 0.5*width, maxs[i] * 1.01, f"{maxs[i]:.2f}", ha='center', fontsize=8)
+            if not np.isnan(modes[i]):
+                plt.text(x[i] + 1.5*width, modes[i] * 1.01, f"{modes[i]:.2f}", ha='center', fontsize=8)
+            else:
+                plt.text(x[i] + 1.5*width, 0.01, "n/a", ha='center', fontsize=7, color='gray')
+
         plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join(FIGS_DIR, f"min_med_max_{colecao}.png"), dpi=150)
         plt.close()
+
 
 
 def linhas_execucoes(df):
